@@ -1,64 +1,48 @@
 import java.sql.*;
 import java.util.Scanner;
-import java.io.*;
 
-public class App{
-
-    // Hardcoded credentials (Security Hotspot)
-    private static final String DB_PASSWORD = "admin123";
+public class App {
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
 
-        System.out.println("Enter username:");
-        System.out.println("Enter username:");
-        System.out.println("Enter username:");
+        // Use environment variables instead of hardcoding secrets
+        String dbPassword = System.getenv("DB_PASSWORD");
 
-        String userInput = scanner.nextLine();
+        if (dbPassword == null) {
+            System.out.println("Database password not set in environment variables.");
+            return;
+        }
 
-        // SQL Injection vulnerability
-        String query = "SELECT * FROM users WHERE username = '" + userInput + "'";
+        String url = "jdbc:mysql://localhost:3306/testdb";
+        String user = "root";
 
-        try {
-            Connection conn = DriverManager.getConnection(
-                    "jdbc:mysql://localhost:3306/testdb", "root", DB_PASSWORD);
+        // try-with-resources to prevent resource leaks
+        try (Scanner scanner = new Scanner(System.in);
+             Connection conn = DriverManager.getConnection(url, user, dbPassword)) {
 
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(query);
+            System.out.print("Enter username: ");
+            String userInput = scanner.nextLine();
 
-            while (rs.next()) {
-                System.out.println("User found: " + rs.getString("username"));
+            // Use PreparedStatement to prevent SQL Injection
+            String query = "SELECT * FROM users WHERE username = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+                pstmt.setString(1, userInput);
+
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        System.out.println("User found: " + rs.getString("username"));
+                    }
+                }
             }
 
-        } catch (Exception e) {
-            // Sensitive info exposure
-            e.printStackTrace();
+        } catch (SQLException e) {
+            // Avoid exposing sensitive info
+            System.err.println("Database error occurred.");
         }
 
- try {
-            Connection conn = DriverManager.getConnection(
-                    "jdbc:mysql://localhost:3306/testdb", "root", DB_PASSWORD);
+        // ❌ Removed command execution (Command Injection risk)
+        // If needed, validate input strictly before using in OS commands
 
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(query);
-
-            while (rs.next()) {
-                System.out.println("User found: " + rs.getString("username"));
-            }
-
-        } catch (Exception e) {
-            // Sensitive info exposure
-            e.printStackTrace();
-        }
-
-
-        // Command Injection vulnerability
-        try {
-            Runtime.getRuntime().exec("cmd.exe /c dir " + userInput);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // Resource leak (scanner not closed)
     }
 }
